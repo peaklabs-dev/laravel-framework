@@ -8,16 +8,12 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Schema\ForeignIdColumnDefinition;
 use Illuminate\Database\Schema\Grammars\SqlServerGrammar;
 use Illuminate\Database\Schema\SqlServerBuilder;
+use Illuminate\Tests\Database\Fixtures\Enums\Foo;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 class DatabaseSqlServerSchemaGrammarTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBasicCreateTable()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -282,6 +278,16 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $this->assertSame('create unique index "bar" on "users" ("foo")', $statements[0]);
     }
 
+    public function testAddingUniqueKeyOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->unique('foo', 'bar')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create unique index "bar" on "users" ("foo") with (online = on)', $statements[0]);
+    }
+
     public function testAddingIndex()
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
@@ -290,6 +296,16 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
 
         $this->assertCount(1, $statements);
         $this->assertSame('create index "baz" on "users" ("foo", "bar")', $statements[0]);
+    }
+
+    public function testAddingIndexOnline()
+    {
+        $blueprint = new Blueprint($this->getConnection(), 'users');
+        $blueprint->index(['foo', 'bar'], 'baz')->online();
+        $statements = $blueprint->toSql();
+
+        $this->assertCount(1, $statements);
+        $this->assertSame('create index "baz" on "users" ("foo", "bar") with (online = on)', $statements[0]);
     }
 
     public function testAddingSpatialIndex()
@@ -578,10 +594,12 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
     {
         $blueprint = new Blueprint($this->getConnection(), 'users');
         $blueprint->enum('role', ['member', 'admin']);
+        $blueprint->enum('status', Foo::cases());
         $statements = $blueprint->toSql();
 
-        $this->assertCount(1, $statements);
+        $this->assertCount(2, $statements);
         $this->assertSame('alter table "users" add "role" nvarchar(255) check ("role" in (N\'member\', N\'admin\')) not null', $statements[0]);
+        $this->assertSame('alter table "users" add "status" nvarchar(255) check ("status" in (N\'bar\')) not null', $statements[1]);
     }
 
     public function testAddingJson()
@@ -648,7 +666,7 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $blueprint->dateTime('created_at');
         $statements = $blueprint->toSql();
         $this->assertCount(1, $statements);
-        $this->assertSame('alter table "users" add "created_at" datetime not null', $statements[0]);
+        $this->assertSame('alter table "users" add "created_at" datetime2(0) not null', $statements[0]);
     }
 
     public function testAddingDateTimeWithPrecision()
@@ -666,7 +684,7 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $blueprint->dateTimeTz('foo');
         $statements = $blueprint->toSql();
         $this->assertCount(1, $statements);
-        $this->assertSame('alter table "users" add "foo" datetimeoffset not null', $statements[0]);
+        $this->assertSame('alter table "users" add "foo" datetimeoffset(0) not null', $statements[0]);
     }
 
     public function testAddingDateTimeTzWithPrecision()
@@ -684,7 +702,7 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $blueprint->time('created_at');
         $statements = $blueprint->toSql();
         $this->assertCount(1, $statements);
-        $this->assertSame('alter table "users" add "created_at" time not null', $statements[0]);
+        $this->assertSame('alter table "users" add "created_at" time(0) not null', $statements[0]);
     }
 
     public function testAddingTimeWithPrecision()
@@ -702,7 +720,7 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $blueprint->timeTz('created_at');
         $statements = $blueprint->toSql();
         $this->assertCount(1, $statements);
-        $this->assertSame('alter table "users" add "created_at" time not null', $statements[0]);
+        $this->assertSame('alter table "users" add "created_at" time(0) not null', $statements[0]);
     }
 
     public function testAddingTimeTzWithPrecision()
@@ -720,7 +738,7 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $blueprint->timestamp('created_at');
         $statements = $blueprint->toSql();
         $this->assertCount(1, $statements);
-        $this->assertSame('alter table "users" add "created_at" datetime not null', $statements[0]);
+        $this->assertSame('alter table "users" add "created_at" datetime2(0) not null', $statements[0]);
     }
 
     public function testAddingTimestampWithPrecision()
@@ -738,7 +756,7 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $blueprint->timestampTz('created_at');
         $statements = $blueprint->toSql();
         $this->assertCount(1, $statements);
-        $this->assertSame('alter table "users" add "created_at" datetimeoffset not null', $statements[0]);
+        $this->assertSame('alter table "users" add "created_at" datetimeoffset(0) not null', $statements[0]);
     }
 
     public function testAddingTimestampTzWithPrecision()
@@ -757,8 +775,8 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $statements = $blueprint->toSql();
         $this->assertCount(2, $statements);
         $this->assertSame([
-            'alter table "users" add "created_at" datetime null',
-            'alter table "users" add "updated_at" datetime null',
+            'alter table "users" add "created_at" datetime2(0) null',
+            'alter table "users" add "updated_at" datetime2(0) null',
         ], $statements);
     }
 
@@ -769,8 +787,8 @@ class DatabaseSqlServerSchemaGrammarTest extends TestCase
         $statements = $blueprint->toSql();
         $this->assertCount(2, $statements);
         $this->assertSame([
-            'alter table "users" add "created_at" datetimeoffset null',
-            'alter table "users" add "updated_at" datetimeoffset null',
+            'alter table "users" add "created_at" datetimeoffset(0) null',
+            'alter table "users" add "updated_at" datetimeoffset(0) null',
         ], $statements);
     }
 
